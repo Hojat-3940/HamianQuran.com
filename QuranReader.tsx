@@ -283,34 +283,4 @@ export default function AudioPlayer({ audio }: AudioPlayerProps) {
     }
   };
 
-  return (
-    <div className="mt-4">
-      <audio
-        ref={audioRef}
-        src={audio}
-        preload="none"
-        onEnded={() => setPlaying(false)}
-        onError={() => {
-          setPlaying(false);
-          setError(true);
-        }}
-      />
-
-      <button
-        type="button"
-        onClick={togglePlay}
-        className="inline-flex items-center gap-2 rounded-xl border px-4 py-2 text-sm hover:border-primary"
-        style={{ borderColor: "var(--border)" }}
-      >
-        {playing ? <Pause size={17} /> : <Play size={17} />}
-        {playing ? "توقف" : "پخش آیه"}
-      </button>
-
-      {error && (
-        <p className="mt-2 text-sm text-red-600">
-          پخش صوت انجام نشد. آدرس فایل صوتی را بررسی کنید.
-        </p>
-      )}
-    </div>
-  );
-}
+  
