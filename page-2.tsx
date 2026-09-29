@@ -1,10 +1,13 @@
 "use client";
 
 import { useState } from "react";
+import QuranReader from "./QuranReader";
 
 type Verse = {
+  id: number;
   verse_key: string;
   text_uthmani: string;
+  words?: unknown[];
 };
 
 export default function HomePage() {
@@ -29,17 +32,30 @@ export default function HomePage() {
       }
 
       const data = await response.json();
+
       setVerses(data.verses || []);
     } catch {
-      setError("دریافت متن قرآن انجام نشد. لطفاً دوباره تلاش کنید.");
+      setError(
+        "دریافت متن قرآن انجام نشد. لطفاً دوباره تلاش کنید."
+      );
     } finally {
       setLoading(false);
     }
   }
 
+  const readerVerses = verses.map((verse) => ({
+    id: verse.id,
+    verse_key: verse.verse_key,
+    numberInSurah: Number(
+      verse.verse_key.split(":")[1]
+    ),
+    arabic: verse.text_uthmani,
+    translation: "",
+  }));
+
   return (
-    <main dir="rtl">
-      <header>
+    <main dir="rtl" className="min-h-screen p-4 md:p-8">
+      <header className="mb-8">
         <h1>HamianQuran.com</h1>
         <p>قرآن کریم</p>
       </header>
@@ -47,18 +63,18 @@ export default function HomePage() {
       <section>
         <h2>۳۰ جزء قرآن کریم</h2>
 
-        <div>
+        <div className="mt-4 flex flex-wrap gap-2">
           {Array.from({ length: 30 }, (_, index) => {
             const number = index + 1;
 
             return (
               <button
                 key={number}
+                type="button"
                 onClick={() => loadJuz(number)}
+                className="rounded-xl border px-4 py-2"
                 style={{
-                  margin: "5px",
-                  padding: "10px 15px",
-                  cursor: "pointer",
+                  borderColor: "var(--border)",
                 }}
               >
                 جزء {number}
@@ -69,28 +85,22 @@ export default function HomePage() {
       </section>
 
       {juz !== null && (
-        <section>
-          <h2>متن عربی جزء {juz}</h2>
+        <section className="mt-8">
+          <h2 className="mb-6">
+            متن عربی جزء {juz}
+          </h2>
 
-          {loading && <p>در حال دریافت متن قرآن...</p>}
+          {loading && (
+            <p>در حال دریافت متن قرآن...</p>
+          )}
 
-          {error && <p>{error}</p>}
+          {error && (
+            <p className="text-red-600">{error}</p>
+          )}
 
-          {!loading &&
-            !error &&
-            verses.map((verse) => (
-              <p
-                key={verse.verse_key}
-                style={{
-                  fontSize: "24px",
-                  lineHeight: "2.2",
-                  textAlign: "right",
-                  marginBottom: "20px",
-                }}
-              >
-                {verse.text_uthmani} <span>﴿{verse.verse_key}﴾</span>
-              </p>
-            ))}
+          {!loading && !error && (
+            <QuranReader verses={readerVerses} />
+          )}
         </section>
       )}
     </main>
