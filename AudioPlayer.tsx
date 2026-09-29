@@ -4,7 +4,7 @@ import { Pause, Play } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
 type AudioPlayerProps = {
-  audio?: string;
+  audio: string;
 };
 
 export default function AudioPlayer({ audio }: AudioPlayerProps) {
@@ -13,20 +13,23 @@ export default function AudioPlayer({ audio }: AudioPlayerProps) {
   const [error, setError] = useState(false);
 
   useEffect(() => {
+    const player = audioRef.current;
+
     setPlaying(false);
     setError(false);
 
-    if (audioRef.current) {
-      audioRef.current.pause();
-      audioRef.current.currentTime = 0;
+    if (player) {
+      player.pause();
+      player.currentTime = 0;
+      player.load();
     }
+
+    return () => {
+      player?.pause();
+    };
   }, [audio]);
 
-  if (!audio) {
-    return null;
-  }
-
-  const togglePlay = async () => {
+  async function togglePlay() {
     const player = audioRef.current;
 
     if (!player) return;
@@ -36,23 +39,23 @@ export default function AudioPlayer({ audio }: AudioPlayerProps) {
     try {
       if (player.paused) {
         await player.play();
-        setPlaying(true);
       } else {
         player.pause();
-        setPlaying(false);
       }
     } catch {
       setPlaying(false);
       setError(true);
     }
-  };
+  }
 
   return (
-    <div className="mt-4">
+    <div className="mt-5">
       <audio
         ref={audioRef}
         src={audio}
         preload="none"
+        onPlay={() => setPlaying(true)}
+        onPause={() => setPlaying(false)}
         onEnded={() => setPlaying(false)}
         onError={() => {
           setPlaying(false);
@@ -63,7 +66,7 @@ export default function AudioPlayer({ audio }: AudioPlayerProps) {
       <button
         type="button"
         onClick={togglePlay}
-        className="inline-flex items-center gap-2 rounded-xl border px-4 py-2 text-sm hover:border-primary"
+        className="inline-flex items-center gap-2 rounded-xl border px-4 py-2 text-sm hover:bg-black/5"
         style={{ borderColor: "var(--border)" }}
       >
         {playing ? <Pause size={17} /> : <Play size={17} />}
@@ -72,7 +75,7 @@ export default function AudioPlayer({ audio }: AudioPlayerProps) {
 
       {error && (
         <p className="mt-2 text-sm text-red-600">
-          پخش صوت انجام نشد. آدرس فایل صوتی را بررسی کنید.
+          پخش صوت انجام نشد. لطفاً دوباره تلاش کنید.
         </p>
       )}
     </div>
