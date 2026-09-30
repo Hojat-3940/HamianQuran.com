@@ -71,7 +71,7 @@ export default function QuranReader({
         }, 2000);
       }
     } catch {
-      // لغو اشتراک‌گذاری
+      // کاربر اشتراک‌گذاری را لغو کرده است.
     }
   }
 
@@ -85,13 +85,10 @@ export default function QuranReader({
 
   return (
     <div className="space-y-4">
-      {verses.map((verse) => {
+      {verses.map((verse, index) => {
         const numberInSurah = Number(
           verse.verse_key.split(":")[1]
         );
-
-        const audioUrl =
-          `https://cdn.islamic.network/quran/audio/128/ar.alafasy/${verse.id}.mp3`;
 
         return (
           <article
@@ -158,7 +155,12 @@ export default function QuranReader({
               </div>
             )}
 
-            <AudioPlayer audio={audioUrl} />
+            {/* فقط آیه اول برای آزمایش صوت */}
+            {index === 0 && (
+              <AudioPlayer
+                audio="https://cdn.islamic.network/quran/audio/128/ar.alafasy/1.mp3"
+              />
+            )}
           </article>
         );
       })}
