@@ -1,6 +1,6 @@
 "use client";
 
-import { uiTranslations } from "@/data/uiTranslations";
+import { uiTranslations } from "./uiTranslations";
 import { useLanguage } from "./LanguageProvider";
 
 type TranslationKey = keyof typeof uiTranslations.fa;
