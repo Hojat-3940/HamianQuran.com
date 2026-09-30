@@ -4,35 +4,36 @@ import { Pause, Play } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
 type AudioPlayerProps = {
-  audio: string;
+  audio?: string;
 };
 
 export default function AudioPlayer({
-  audio,
+  audio = "https://cdn.islamic.network/quran/audio/128/ar.alafasy/1.mp3",
 }: AudioPlayerProps) {
   const audioRef = useRef<HTMLAudioElement | null>(null);
+
   const [playing, setPlaying] = useState(false);
-  const [error, setError] = useState(false);
+  const [error, setError] = useState("");
 
   useEffect(() => {
     const player = audioRef.current;
 
-    setPlaying(false);
-    setError(false);
+    if (!player) return;
 
-    if (player) {
-      player.pause();
-      player.currentTime = 0;
-      player.load();
-    }
+    player.pause();
+    player.currentTime = 0;
+    setPlaying(false);
+    setError("");
+
+    player.load();
   }, [audio]);
 
-  async function togglePlay() {
+  async function playAudio() {
     const player = audioRef.current;
 
     if (!player) return;
 
-    setError(false);
+    setError("");
 
     try {
       if (player.paused) {
@@ -40,9 +41,10 @@ export default function AudioPlayer({
       } else {
         player.pause();
       }
-    } catch {
+    } catch (err) {
+      console.error("Audio playback error:", err);
       setPlaying(false);
-      setError(true);
+      setError("پخش صوت انجام نشد. دوباره تلاش کنید.");
     }
   }
 
@@ -50,11 +52,11 @@ export default function AudioPlayer({
     <div className="mt-4">
       <audio
         ref={audioRef}
+        preload="auto"
         src={audio}
-        preload="none"
         onPlay={() => {
           setPlaying(true);
-          setError(false);
+          setError("");
         }}
         onPause={() => {
           setPlaying(false);
@@ -64,30 +66,27 @@ export default function AudioPlayer({
         }}
         onError={() => {
           setPlaying(false);
-          setError(true);
+          setError("فایل صوتی قابل پخش نیست.");
         }}
       />
 
       <button
         type="button"
-        onClick={togglePlay}
-        className="inline-flex items-center gap-2 rounded-xl border px-4 py-2 text-sm font-medium transition hover:bg-black/5"
+        onClick={playAudio}
+        className="inline-flex items-center gap-2 rounded-xl border px-4 py-3 text-sm font-medium transition active:scale-95 hover:bg-black/5"
         style={{
           borderColor: "var(--border)",
         }}
+        aria-label={playing ? "توقف صوت" : "پخش صوت"}
       >
-        {playing ? (
-          <Pause size={17} />
-        ) : (
-          <Play size={17} />
-        )}
+        {playing ? <Pause size={18} /> : <Play size={18} />}
 
-        {playing ? "توقف" : "پخش آیه"}
+        {playing ? "توقف صوت" : "پخش صوت"}
       </button>
 
       {error && (
         <p className="mt-2 text-sm text-red-600">
-          پخش صوت انجام نشد. لطفاً دوباره تلاش کنید.
+          {error}
         </p>
       )}
     </div>
