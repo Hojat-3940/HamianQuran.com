@@ -6,8 +6,14 @@ export default function CalendarMenu() {
   const [open, setOpen] = useState(false);
 
   return (
-    <div style={{ position: "relative", display: "inline-block" }}>
+    <div
+      style={{
+        position: "relative",
+        display: "inline-block",
+      }}
+    >
       <button
+        type="button"
         onClick={() => setOpen(!open)}
         style={{
           padding: "10px 16px",
@@ -27,7 +33,7 @@ export default function CalendarMenu() {
             position: "absolute",
             top: "48px",
             right: 0,
-            minWidth: "170px",
+            minWidth: "180px",
             background: "#fff",
             border: "1px solid #ddd",
             borderRadius: "10px",
@@ -36,26 +42,11 @@ export default function CalendarMenu() {
             zIndex: 1000,
           }}
         >
-          <button
-            style={itemStyle}
-            onClick={() => alert("تقویم قمری")}
-          >
-            🌙 تقویم قمری
-          </button>
+          <div style={itemStyle}>🌙 تقویم قمری</div>
 
-          <button
-            style={itemStyle}
-            onClick={() => alert("تقویم شمسی")}
-          >
-            ☀️ تقویم شمسی
-          </button>
+          <div style={itemStyle}>☀️ تقویم شمسی</div>
 
-          <button
-            style={itemStyle}
-            onClick={() => alert("تقویم میلادی")}
-          >
-            📅 تقویم میلادی
-          </button>
+          <div style={itemStyle}>📅 تقویم میلادی</div>
         </div>
       )}
     </div>
@@ -71,6 +62,5 @@ const itemStyle = {
   borderRadius: "8px",
   background: "transparent",
   textAlign: "right" as const,
-  cursor: "pointer",
   fontSize: "15px",
 };
