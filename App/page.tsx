@@ -4,6 +4,7 @@ import { useState } from "react";
 import QuranReader from "@/components/QuranReader";
 import LanguageSelector from "@/components/LanguageSelector";
 import LanguageText from "@/components/LanguageText";
+import AudioPlayer from "@/components/AudioPlayer";
 
 type ApiVerse = {
   id: number;
@@ -78,6 +79,11 @@ export default function HomePage() {
 
         <LanguageSelector />
       </header>
+
+      {/* آزمایش صوت آیه ۱ سوره حمد */}
+      <section className="mx-auto mb-8 max-w-5xl">
+        <AudioPlayer />
+      </section>
 
       <section className="mx-auto max-w-5xl">
         <h2 className="mb-5 text-xl font-bold">
