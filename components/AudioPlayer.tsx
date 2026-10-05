@@ -1,93 +1,88 @@
 "use client";
 
-import { Pause, Play } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 
-type AudioPlayerProps = {
-  audio?: string;
-};
-
-export default function AudioPlayer({
-  audio = "https://cdn.islamic.network/quran/audio/128/ar.alafasy/1.mp3",
-}: AudioPlayerProps) {
+export default function AudioPlayer() {
   const audioRef = useRef<HTMLAudioElement | null>(null);
-
   const [playing, setPlaying] = useState(false);
   const [error, setError] = useState("");
 
-  useEffect(() => {
-    const player = audioRef.current;
+  const audioUrl =
+    "https://verses.quran.foundation/Alafasy/mp3/001001.mp3";
 
-    if (!player) return;
-
-    player.pause();
-    player.currentTime = 0;
-    setPlaying(false);
-    setError("");
-
-    player.load();
-  }, [audio]);
-
-  async function playAudio() {
-    const player = audioRef.current;
-
-    if (!player) return;
-
+  const playAudio = async () => {
     setError("");
 
     try {
-      if (player.paused) {
-        await player.play();
+      if (!audioRef.current) {
+        audioRef.current = new Audio(audioUrl);
+
+        audioRef.current.onended = () => {
+          setPlaying(false);
+        };
+
+        audioRef.current.onerror = () => {
+          setPlaying(false);
+          setError("پخش صوت با خطا مواجه شد.");
+        };
+      }
+
+      if (playing) {
+        audioRef.current.pause();
+        setPlaying(false);
       } else {
-        player.pause();
+        await audioRef.current.play();
+        setPlaying(true);
       }
     } catch (err) {
-      console.error("Audio playback error:", err);
+      console.error(err);
       setPlaying(false);
-      setError("پخش صوت انجام نشد. دوباره تلاش کنید.");
+      setError("مرورگر اجازه پخش صوت را نداد.");
     }
-  }
+  };
 
   return (
-    <div className="mt-4">
-      <audio
-        ref={audioRef}
-        preload="auto"
-        src={audio}
-        onPlay={() => {
-          setPlaying(true);
-          setError("");
+    <div
+      dir="rtl"
+      style={{
+        marginTop: "20px",
+        padding: "20px",
+        border: "1px solid #ddd",
+        borderRadius: "12px",
+        textAlign: "center",
+      }}
+    >
+      <div
+        style={{
+          fontSize: "28px",
+          lineHeight: "2",
+          marginBottom: "10px",
         }}
-        onPause={() => {
-          setPlaying(false);
-        }}
-        onEnded={() => {
-          setPlaying(false);
-        }}
-        onError={() => {
-          setPlaying(false);
-          setError("فایل صوتی قابل پخش نیست.");
-        }}
-      />
+      >
+        بِسْمِ اللَّهِ الرَّحْمَٰنِ الرَّحِيمِ
+      </div>
+
+      <div style={{ marginBottom: "15px", color: "#666" }}>
+        سوره حمد — آیه ۱
+      </div>
 
       <button
-        type="button"
         onClick={playAudio}
-        className="inline-flex items-center gap-2 rounded-xl border px-4 py-3 text-sm font-medium transition active:scale-95 hover:bg-black/5"
         style={{
-          borderColor: "var(--border)",
+          padding: "12px 25px",
+          borderRadius: "10px",
+          border: "none",
+          cursor: "pointer",
+          fontSize: "18px",
         }}
-        aria-label={playing ? "توقف صوت" : "پخش صوت"}
       >
-        {playing ? <Pause size={18} /> : <Play size={18} />}
-
-        {playing ? "توقف صوت" : "پخش صوت"}
+        {playing ? "⏸ توقف" : "🔊 پخش صوت"}
       </button>
 
       {error && (
-        <p className="mt-2 text-sm text-red-600">
+        <div style={{ marginTop: "12px", color: "red" }}>
           {error}
-        </p>
+        </div>
       )}
     </div>
   );
