@@ -2,85 +2,124 @@
 
 import { useRef, useState } from "react";
 
+const verses = [
+  "بِسْمِ اللَّهِ الرَّحْمَٰنِ الرَّحِيمِ",
+  "الْحَمْدُ لِلَّهِ رَبِّ الْعَالَمِينَ",
+  "الرَّحْمَٰنِ الرَّحِيمِ",
+  "مَالِكِ يَوْمِ الدِّينِ",
+  "إِيَّاكَ نَعْبُدُ وَإِيَّاكَ نَسْتَعِينُ",
+  "اهْدِنَا الصِّرَاطَ الْمُسْتَقِيمَ",
+  "صِرَاطَ الَّذِينَ أَنْعَمْتَ عَلَيْهِمْ غَيْرِ الْمَغْضُوبِ عَلَيْهِمْ وَلَا الضَّالِّينَ",
+];
+
+const audioUrl = (ayah: number) =>
+  `https://lswterikzwmldijimxrg.supabase.co/storage/v1/object/public/member-media/00100${ayah}.mp3`;
+
 export default function AudioPlayer() {
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const [ayah, setAyah] = useState(1);
   const [playing, setPlaying] = useState(false);
   const [error, setError] = useState("");
-
-  const audioUrl =
-    "https://verses.quran.foundation/Alafasy/mp3/001001.mp3";
 
   const playAudio = async () => {
     setError("");
 
     try {
-      if (!audioRef.current) {
-        audioRef.current = new Audio(audioUrl);
+      let audio = audioRef.current;
 
-        audioRef.current.onended = () => {
-          setPlaying(false);
-        };
+      if (!audio || audio.src !== audioUrl(ayah)) {
+        audio?.pause();
+        audio = new Audio(audioUrl(ayah));
+        audioRef.current = audio;
 
-        audioRef.current.onerror = () => {
+        audio.onended = () => setPlaying(false);
+        audio.onerror = () => {
           setPlaying(false);
-          setError("پخش صوت با خطا مواجه شد.");
+          setError("فایل صوتی باز نشد. لینک یا دسترسی فایل را بررسی کنید.");
         };
       }
 
-      if (playing) {
-        audioRef.current.pause();
+      if (!audio.paused) {
+        audio.pause();
         setPlaying(false);
-      } else {
-        await audioRef.current.play();
-        setPlaying(true);
+        return;
       }
-    } catch (err) {
-      console.error(err);
+
+      await audio.play();
+      setPlaying(true);
+    } catch {
       setPlaying(false);
-      setError("مرورگر اجازه پخش صوت را نداد.");
+      setError("پخش صوت انجام نشد. دوباره تلاش کنید.");
     }
+  };
+
+  const changeAyah = (next: number) => {
+    audioRef.current?.pause();
+    audioRef.current = null;
+    setPlaying(false);
+    setError("");
+    setAyah(next);
   };
 
   return (
     <div
       dir="rtl"
       style={{
-        marginTop: "20px",
-        padding: "20px",
+        marginTop: 20,
+        padding: 20,
         border: "1px solid #ddd",
-        borderRadius: "12px",
+        borderRadius: 12,
         textAlign: "center",
       }}
     >
       <div
         style={{
-          fontSize: "28px",
-          lineHeight: "2",
-          marginBottom: "10px",
+          fontSize: 27,
+          lineHeight: 2,
+          marginBottom: 10,
         }}
       >
-        بِسْمِ اللَّهِ الرَّحْمَٰنِ الرَّحِيمِ
+        {verses[ayah - 1]}
       </div>
 
-      <div style={{ marginBottom: "15px", color: "#666" }}>
-        سوره حمد — آیه ۱
+      <div style={{ marginBottom: 16, color: "#666" }}>
+        سوره حمد — آیه {ayah} از ۷
       </div>
 
       <button
         onClick={playAudio}
         style={{
-          padding: "12px 25px",
-          borderRadius: "10px",
+          padding: "12px 22px",
+          margin: 5,
+          borderRadius: 10,
           border: "none",
           cursor: "pointer",
-          fontSize: "18px",
+          fontSize: 17,
         }}
       >
         {playing ? "⏸ توقف" : "🔊 پخش صوت"}
       </button>
 
+      <div style={{ marginTop: 12 }}>
+        <button
+          onClick={() => changeAyah(Math.max(1, ayah - 1))}
+          disabled={ayah === 1}
+          style={{ padding: 10, margin: 5 }}
+        >
+          آیه قبلی
+        </button>
+
+        <button
+          onClick={() => changeAyah(Math.min(7, ayah + 1))}
+          disabled={ayah === 7}
+          style={{ padding: 10, margin: 5 }}
+        >
+          آیه بعدی
+        </button>
+      </div>
+
       {error && (
-        <div style={{ marginTop: "12px", color: "red" }}>
+        <div style={{ marginTop: 12, color: "red" }}>
           {error}
         </div>
       )}
