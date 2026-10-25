@@ -1,6 +1,7 @@
+
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 const verses = [
   "بِسْمِ اللَّهِ الرَّحْمَٰنِ الرَّحِيمِ",
@@ -21,36 +22,69 @@ export default function AudioPlayer() {
   const [playing, setPlaying] = useState(false);
   const [error, setError] = useState("");
 
+  const playAyah = async (number: number) => {
+    setError("");
+
+    const audio = new Audio(audioUrl(number));
+    audioRef.current?.pause();
+    audioRef.current = audio;
+
+    audio.onended = () => {
+      if (audioRef.current !== audio) return;
+
+      if (number < 7) {
+        setAyah(number + 1);
+        void playAyah(number + 1);
+      } else {
+        setPlaying(false);
+      }
+    };
+
+    audio.onerror = () => {
+      if (audioRef.current !== audio) return;
+      setPlaying(false);
+      setError("پخش فایل صوتی ناموفق بود. اتصال اینترنت را بررسی کنید.");
+    };
+
+    try {
+      await audio.play();
+
+      if (audioRef.current === audio) {
+        setPlaying(true);
+      }
+    } catch {
+      if (audioRef.current === audio) {
+        setPlaying(false);
+        setError("پخش صوت انجام نشد. دوباره دکمه پخش را بزنید.");
+      }
+    }
+  };
+
   const playAudio = async () => {
     setError("");
 
-    try {
-      let audio = audioRef.current;
+    const audio = audioRef.current;
 
-      if (!audio || audio.src !== audioUrl(ayah)) {
-        audio?.pause();
-        audio = new Audio(audioUrl(ayah));
-        audioRef.current = audio;
-
-        audio.onended = () => setPlaying(false);
-        audio.onerror = () => {
-          setPlaying(false);
-          setError("فایل صوتی باز نشد. لینک یا دسترسی فایل را بررسی کنید.");
-        };
-      }
-
-      if (!audio.paused) {
-        audio.pause();
-        setPlaying(false);
-        return;
-      }
-
-      await audio.play();
-      setPlaying(true);
-    } catch {
+    if (audio && !audio.paused) {
+      audio.pause();
       setPlaying(false);
-      setError("پخش صوت انجام نشد. دوباره تلاش کنید.");
+      return;
     }
+
+    if (audio && audio.src === audioUrl(ayah)) {
+      try {
+        await audio.play();
+        if (audioRef.current === audio) setPlaying(true);
+      } catch {
+        if (audioRef.current === audio) {
+          setPlaying(false);
+          setError("پخش صوت انجام نشد. دوباره تلاش کنید.");
+        }
+      }
+      return;
+    }
+
+    await playAyah(ayah);
   };
 
   const changeAyah = (next: number) => {
@@ -60,6 +94,15 @@ export default function AudioPlayer() {
     setError("");
     setAyah(next);
   };
+
+  useEffect(() => {
+    return () => {
+      if (audioRef.current) {
+        audioRef.current.pause();
+        audioRef.current = null;
+      }
+    };
+  }, []);
 
   return (
     <div
@@ -126,3 +169,4 @@ export default function AudioPlayer() {
     </div>
   );
 }
+
