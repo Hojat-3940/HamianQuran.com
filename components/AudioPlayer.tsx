@@ -3,6 +3,12 @@
 
 import { useEffect, useRef, useState } from "react";
 
+const SUPABASE_BASE =
+  "https://lswterikzwmldijimxrg.supabase.co/storage/v1/object/public/member-media/Untitled%20folder";
+
+const audioUrl = (ayah: number) =>
+  `${SUPABASE_BASE}/00100${ayah}.mp3`;
+
 const verses = [
   "بِسْمِ اللَّهِ الرَّحْمَٰنِ الرَّحِيمِ",
   "الْحَمْدُ لِلَّهِ رَبِّ الْعَالَمِينَ",
@@ -13,27 +19,24 @@ const verses = [
   "صِرَاطَ الَّذِينَ أَنْعَمْتَ عَلَيْهِمْ غَيْرِ الْمَغْضُوبِ عَلَيْهِمْ وَلَا الضَّالِّينَ",
 ];
 
-const audioUrl = (ayah: number) =>
-  `https://lswterikzwmldijimxrg.supabase.co/storage/v1/object/public/member-media/00100${ayah}.mp3`;
-
 export default function AudioPlayer() {
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const [ayah, setAyah] = useState(1);
   const [playing, setPlaying] = useState(false);
   const [error, setError] = useState("");
 
-  const playAyah = async (number: number) => {
-    setError("");
+  async function playAyah(number: number) {
+    audioRef.current?.pause();
 
     const audio = new Audio(audioUrl(number));
-    audioRef.current?.pause();
     audioRef.current = audio;
+    setAyah(number);
+    setError("");
 
     audio.onended = () => {
       if (audioRef.current !== audio) return;
 
       if (number < 7) {
-        setAyah(number + 1);
         void playAyah(number + 1);
       } else {
         setPlaying(false);
@@ -43,27 +46,27 @@ export default function AudioPlayer() {
     audio.onerror = () => {
       if (audioRef.current !== audio) return;
       setPlaying(false);
-      setError("پخش فایل صوتی ناموفق بود. اتصال اینترنت را بررسی کنید.");
+      setError(
+        `پخش فایل صوتی آیه ${number} ناموفق بود. مسیر فایل را بررسی کنید.`
+      );
     };
 
     try {
       await audio.play();
-
       if (audioRef.current === audio) {
         setPlaying(true);
       }
     } catch {
       if (audioRef.current === audio) {
         setPlaying(false);
-        setError("پخش صوت انجام نشد. دوباره دکمه پخش را بزنید.");
+        setError("پخش صوت انجام نشد. دوباره تلاش کنید.");
       }
     }
-  };
+  }
 
-  const playAudio = async () => {
-    setError("");
-
+  async function togglePlayback() {
     const audio = audioRef.current;
+    setError("");
 
     if (audio && !audio.paused) {
       audio.pause();
@@ -74,99 +77,84 @@ export default function AudioPlayer() {
     if (audio && audio.src === audioUrl(ayah)) {
       try {
         await audio.play();
-        if (audioRef.current === audio) setPlaying(true);
-      } catch {
         if (audioRef.current === audio) {
-          setPlaying(false);
-          setError("پخش صوت انجام نشد. دوباره تلاش کنید.");
+          setPlaying(true);
         }
+      } catch {
+        setPlaying(false);
+        setError("پخش صوت انجام نشد. دوباره تلاش کنید.");
       }
       return;
     }
 
     await playAyah(ayah);
-  };
+  }
 
-  const changeAyah = (next: number) => {
+  function changeAyah(next: number) {
     audioRef.current?.pause();
     audioRef.current = null;
     setPlaying(false);
     setError("");
     setAyah(next);
-  };
+  }
 
   useEffect(() => {
     return () => {
-      if (audioRef.current) {
-        audioRef.current.pause();
-        audioRef.current = null;
-      }
+      audioRef.current?.pause();
+      audioRef.current = null;
     };
   }, []);
 
   return (
-    <div
+    <section
       dir="rtl"
-      style={{
-        marginTop: 20,
-        padding: 20,
-        border: "1px solid #ddd",
-        borderRadius: 12,
-        textAlign: "center",
-      }}
+      className="mt-5 rounded-xl border p-5 text-center"
     >
-      <div
-        style={{
-          fontSize: 27,
-          lineHeight: 2,
-          marginBottom: 10,
-        }}
-      >
-        {verses[ayah - 1]}
-      </div>
+      <p className="mb-2 text-xl font-bold">
+        صوت ترجمه فارسی سوره حمد
+      </p>
 
-      <div style={{ marginBottom: 16, color: "#666" }}>
-        سوره حمد — آیه {ayah} از ۷
-      </div>
+      <p className="mb-3 text-sm text-muted">
+        آیه {ayah} از ۷
+      </p>
+
+      <p className="mb-4 text-lg leading-9">
+        {verses[ayah - 1]}
+      </p>
 
       <button
-        onClick={playAudio}
-        style={{
-          padding: "12px 22px",
-          margin: 5,
-          borderRadius: 10,
-          border: "none",
-          cursor: "pointer",
-          fontSize: 17,
-        }}
+        type="button"
+        onClick={togglePlayback}
+        className="rounded-xl border px-5 py-3"
       >
-        {playing ? "⏸ توقف" : "🔊 پخش صوت"}
+        {playing ? "⏸ توقف" : "🔊 پخش صوت ترجمه"}
       </button>
 
-      <div style={{ marginTop: 12 }}>
+      <div className="mt-4 flex justify-center gap-3">
         <button
-          onClick={() => changeAyah(Math.max(1, ayah - 1))}
+          type="button"
           disabled={ayah === 1}
-          style={{ padding: 10, margin: 5 }}
+          onClick={() => changeAyah(ayah - 1)}
+          className="rounded-lg border px-4 py-2 disabled:opacity-40"
         >
           آیه قبلی
         </button>
 
         <button
-          onClick={() => changeAyah(Math.min(7, ayah + 1))}
+          type="button"
           disabled={ayah === 7}
-          style={{ padding: 10, margin: 5 }}
+          onClick={() => changeAyah(ayah + 1)}
+          className="rounded-lg border px-4 py-2 disabled:opacity-40"
         >
           آیه بعدی
         </button>
       </div>
 
       {error && (
-        <div style={{ marginTop: 12, color: "red" }}>
+        <p role="alert" className="mt-4 text-sm text-red-600">
           {error}
-        </div>
+        </p>
       )}
-    </div>
+    </section>
   );
 }
-
