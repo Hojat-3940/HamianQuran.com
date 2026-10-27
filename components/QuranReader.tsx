@@ -1,8 +1,8 @@
+
 "use client";
 
 import { Bookmark, Check, Share2 } from "lucide-react";
 import { useEffect, useState } from "react";
-import AudioPlayer from "./AudioPlayer";
 
 type Verse = {
   id: number;
@@ -15,6 +15,24 @@ type QuranReaderProps = {
   verses: Verse[];
 };
 
+const SUPABASE_AUDIO_BASE =
+  "https://lswterikzwmldijimxrg.supabase.co/storage/v1/object/public/member-media/Untitled%20folder";
+
+function getPersianTranslationAudio(verseKey: string) {
+  const [surah, ayah] = verseKey.split(":").map(Number);
+
+  // فایل‌های صوت ترجمه فعلاً فقط برای سوره حمد موجودند.
+  if (surah !== 1 || ayah < 1 || ayah > 7) {
+    return null;
+  }
+
+  return `${SUPABASE_AUDIO_BASE}/00100${ayah}.mp3`;
+}
+
+function getArabicAudio(verseId: number) {
+  return `https://cdn.islamic.network/quran/audio/128/ar.alafasy/${verseId}.mp3`;
+}
+
 export default function QuranReader({
   verses,
 }: QuranReaderProps) {
@@ -24,7 +42,6 @@ export default function QuranReader({
   useEffect(() => {
     try {
       const stored = localStorage.getItem("hamian-saved");
-
       if (stored) {
         setSaved(JSON.parse(stored));
       }
@@ -41,18 +58,15 @@ export default function QuranReader({
     setSaved(next);
 
     try {
-      localStorage.setItem(
-        "hamian-saved",
-        JSON.stringify(next)
-      );
-    } catch {}
+      localStorage.setItem("hamian-saved", JSON.stringify(next));
+    } catch {
+      // ذخیره محلی ممکن است در بعضی مرورگرها غیرفعال باشد.
+    }
   }
 
   async function share(verse: Verse) {
     const text = `${verse.arabic}${
-      verse.translation
-        ? `\n\n${verse.translation}`
-        : ""
+      verse.translation ? `\n\n${verse.translation}` : ""
     }`;
 
     try {
@@ -63,15 +77,14 @@ export default function QuranReader({
         });
       } else if (navigator.clipboard) {
         await navigator.clipboard.writeText(text);
-
         setCopied(verse.id);
 
-        setTimeout(() => {
+        window.setTimeout(() => {
           setCopied(null);
         }, 2000);
       }
     } catch {
-      // کاربر اشتراک‌گذاری را لغو کرده است.
+      // اشتراک‌گذاری لغو شده است.
     }
   }
 
@@ -85,10 +98,13 @@ export default function QuranReader({
 
   return (
     <div className="space-y-4">
-      {verses.map((verse, index) => {
+      {verses.map((verse) => {
         const numberInSurah = Number(
           verse.verse_key.split(":")[1]
         );
+
+        const translationAudio =
+          getPersianTranslationAudio(verse.verse_key);
 
         return (
           <article
@@ -98,15 +114,13 @@ export default function QuranReader({
           >
             <div className="mb-5 flex items-center justify-between gap-3">
               <span className="text-sm font-bold text-[#bd8e35]">
-                آیه {numberInSurah}
+                سوره و آیه {verse.verse_key}
               </span>
 
               <div className="flex gap-1">
                 <button
                   type="button"
-                  onClick={() =>
-                    toggleSave(verse.id)
-                  }
+                  onClick={() => toggleSave(verse.id)}
                   className="rounded-lg p-2 hover:bg-black/5"
                   title="نشان‌گذاری"
                   aria-label="نشان‌گذاری آیه"
@@ -146,20 +160,47 @@ export default function QuranReader({
 
             {verse.translation && (
               <div
-                className="mt-6 border-t pt-5 text-[15px] leading-8 text-muted"
-                style={{
-                  borderColor: "var(--border)",
-                }}
+                className="mt-5 border-t pt-4 text-[15px] leading-8 text-muted"
+                style={{ borderColor: "var(--border)" }}
               >
-                {verse.translation}
+                <p className="mb-2 font-bold">ترجمه فارسی</p>
+                <p>{verse.translation}</p>
               </div>
             )}
 
-            {/* فقط آیه اول برای آزمایش صوت */}
-            {index === 0 && (
-              <AudioPlayer
-                audio="https://cdn.islamic.network/quran/audio/128/ar.alafasy/1.mp3"
-              />
+            <div
+              className="mt-5 border-t pt-4"
+              style={{ borderColor: "var(--border)" }}
+            >
+              <p className="mb-2 font-bold">🔊 صوت عربی آیه</p>
+
+              <audio
+                key={`arabic-${verse.id}`}
+                controls
+                preload="none"
+                className="w-full"
+                src={getArabicAudio(verse.id)}
+              >
+                مرورگر شما از پخش صوت پشتیبانی نمی‌کند.
+              </audio>
+            </div>
+
+            {translationAudio && (
+              <div className="mt-4">
+                <p className="mb-2 font-bold">
+                  🔊 صوت ترجمه فارسی آیه
+                </p>
+
+                <audio
+                  key={`translation-${verse.verse_key}`}
+                  controls
+                  preload="none"
+                  className="w-full"
+                  src={translationAudio}
+                >
+                  مرورگر شما از پخش صوت پشتیبانی نمی‌کند.
+                </audio>
+              </div>
             )}
           </article>
         );
