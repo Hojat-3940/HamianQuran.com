@@ -1,15 +1,21 @@
+
 "use client";
 
 import { useState } from "react";
 import QuranReader from "@/components/QuranReader";
 import LanguageSelector from "@/components/LanguageSelector";
 import LanguageText from "@/components/LanguageText";
-import AudioPlayer from "@/components/AudioPlayer";
 
 type ApiVerse = {
   id: number;
   verse_key: string;
   text_uthmani: string;
+};
+
+type TranslationItem = {
+  sura: number;
+  aya: number;
+  translation: string;
 };
 
 type ReaderVerse = {
@@ -19,21 +25,28 @@ type ReaderVerse = {
   translation?: string;
 };
 
+const QURAN_API = "https://api.quran.com/api/v4";
+const TRANSLATION_API =
+  "https://quranenc.com/api/v1/translation/sura/persian_ih";
+
 export default function HomePage() {
   const [juz, setJuz] = useState<number | null>(null);
   const [verses, setVerses] = useState<ReaderVerse[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [translationWarning, setTranslationWarning] =
+    useState("");
 
   async function loadJuz(juzNumber: number) {
     setJuz(juzNumber);
     setVerses([]);
     setError("");
+    setTranslationWarning("");
     setLoading(true);
 
     try {
       const response = await fetch(
-        `https://api.quran.com/api/v4/quran/verses/uthmani?juz_number=${juzNumber}`
+        `${QURAN_API}/quran/verses/uthmani?juz_number=${juzNumber}`
       );
 
       if (!response.ok) {
@@ -42,7 +55,7 @@ export default function HomePage() {
 
       const data = await response.json();
 
-      const readerVerses: ReaderVerse[] = (
+      const arabicVerses: ReaderVerse[] = (
         data.verses || []
       ).map((verse: ApiVerse) => ({
         id: verse.id,
@@ -51,10 +64,66 @@ export default function HomePage() {
         translation: "",
       }));
 
-      setVerses(readerVerses);
+      if (arabicVerses.length === 0) {
+        setVerses([]);
+        return;
+      }
+
+      // دریافت ترجمه هر سوره فقط یک بار
+      const surahNumbers = Array.from(
+        new Set(
+          arabicVerses.map((verse) =>
+            Number(verse.verse_key.split(":")[0])
+          )
+        )
+      );
+
+      const translationResults = await Promise.all(
+        surahNumbers.map(async (surahNumber) => {
+          const translationResponse = await fetch(
+            `${TRANSLATION_API}/${surahNumber}`
+          );
+
+          if (!translationResponse.ok) {
+            throw new Error(
+              `Translation request failed: ${surahNumber}`
+            );
+          }
+
+          const items: TranslationItem[] =
+            await translationResponse.json();
+
+          return items;
+        })
+      );
+
+      const translationMap = new Map<string, string>();
+
+      translationResults.flat().forEach((item) => {
+        translationMap.set(
+          `${item.sura}:${item.aya}`,
+          item.translation
+        );
+      });
+
+      const completeVerses = arabicVerses.map((verse) => ({
+        ...verse,
+        translation:
+          translationMap.get(verse.verse_key) || "",
+      }));
+
+      setVerses(completeVerses);
+
+      if (
+        completeVerses.some((verse) => !verse.translation)
+      ) {
+        setTranslationWarning(
+          "بعضی ترجمه‌ها دریافت نشدند. لطفاً اتصال اینترنت را بررسی کنید."
+        );
+      }
     } catch {
       setError(
-        "دریافت متن قرآن انجام نشد. لطفاً دوباره تلاش کنید."
+        "دریافت اطلاعات قرآن یا ترجمه انجام نشد. لطفاً دوباره تلاش کنید."
       );
     } finally {
       setLoading(false);
@@ -79,11 +148,6 @@ export default function HomePage() {
 
         <LanguageSelector />
       </header>
-
-      {/* آزمایش صوت آیه ۱ سوره حمد */}
-      <section className="mx-auto mb-8 max-w-5xl">
-        <AudioPlayer />
-      </section>
 
       <section className="mx-auto max-w-5xl">
         <h2 className="mb-5 text-xl font-bold">
@@ -120,14 +184,30 @@ export default function HomePage() {
 
           {loading && (
             <div className="card p-6 text-center">
-              <LanguageText k="loading" />
+              در حال دریافت متن قرآن و ترجمه فارسی...
             </div>
           )}
 
           {error && (
-            <div className="card p-6 text-center text-red-600">
+            <div
+              role="alert"
+              className="card p-6 text-center text-red-600"
+            >
               {error}
+              <button
+                type="button"
+                onClick={() => loadJuz(juz)}
+                className="mr-3 rounded-lg border px-3 py-2"
+              >
+                تلاش مجدد
+              </button>
             </div>
+          )}
+
+          {translationWarning && !loading && (
+            <p className="mb-4 text-sm text-amber-700">
+              {translationWarning}
+            </p>
           )}
 
           {!loading && !error && (
@@ -135,6 +215,11 @@ export default function HomePage() {
           )}
         </section>
       )}
+
+      <footer className="mx-auto mt-8 max-w-5xl text-center text-xs text-muted">
+        منبع ترجمه فارسی: QuranEnc.com
+      </footer>
     </main>
   );
 }
+
