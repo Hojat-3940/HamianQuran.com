@@ -5,18 +5,7 @@ import { useState } from "react";
 import QuranReader from "@/components/QuranReader";
 import LanguageSelector from "@/components/LanguageSelector";
 import LanguageText from "@/components/LanguageText";
-
-type ApiVerse = {
-  id: number;
-  verse_key: string;
-  text_uthmani: string;
-};
-
-type TranslationItem = {
-  sura: number;
-  aya: number;
-  translation: string;
-};
+import { supabase } from "@/lib/supabase";
 
 type ReaderVerse = {
   id: number;
@@ -25,9 +14,39 @@ type ReaderVerse = {
   translation?: string;
 };
 
-const QURAN_API = "https://api.quran.com/api/v4";
+type TranslationItem = {
+  sura: number;
+  aya: number;
+  translation: string;
+};
+
 const TRANSLATION_API =
   "https://quranenc.com/api/v1/translation/sura/persian_ih";
+
+const JUZ_STARTS = [
+  [1, 1], [2, 142], [2, 253], [3, 93], [4, 24],
+  [4, 148], [5, 82], [6, 111], [7, 88], [8, 41],
+  [9, 93], [11, 6], [12, 53], [15, 1], [17, 1],
+  [18, 75], [21, 1], [23, 1], [25, 21], [27, 56],
+  [29, 46], [33, 31], [36, 28], [39, 32], [41, 47],
+  [46, 1], [51, 31], [58, 1], [67, 1], [78, 1]
+];
+
+const JUZ_ENDS = [
+  [2, 141], [2, 252], [3, 92], [4, 23], [4, 147],
+  [5, 81], [6, 110], [7, 87], [8, 40], [9, 92],
+  [11, 5], [12, 52], [14, 52], [16, 128], [18, 74],
+  [20, 135], [22, 78], [25, 20], [27, 55], [29, 45],
+  [33, 30], [36, 27], [39, 31], [41, 46], [45, 37],
+  [51, 30], [57, 29], [66, 12], [77, 50], [114, 6]
+];
+
+function compareVerse(
+  a: [number, number],
+  b: [number, number]
+) {
+  return a[0] - b[0] || a[1] - b[1];
+}
 
 export default function HomePage() {
   const [juz, setJuz] = useState<number | null>(null);
@@ -45,85 +64,93 @@ export default function HomePage() {
     setLoading(true);
 
     try {
-      const response = await fetch(
-        `${QURAN_API}/quran/verses/uthmani?juz_number=${juzNumber}`
-      );
+      const start = JUZ_STARTS[juzNumber - 1];
+      const end = JUZ_ENDS[juzNumber - 1];
 
-      if (!response.ok) {
-        throw new Error("Quran request failed");
+      const { data, error: dbError } = await supabase
+        .from("quran_verses")
+        .select("id, surah_number, ayah_number, arabic_text")
+        .order("surah_number", { ascending: true })
+        .order("ayah_number", { ascending: true });
+
+      if (dbError) throw dbError;
+
+      const arabicVerses: ReaderVerse[] = (data || [])
+        .filter((v) => {
+          const position: [number, number] = [
+            v.surah_number,
+            v.ayah_number
+          ];
+
+          return (
+            compareVerse(position, start) >= 0 &&
+            compareVerse(position, end) <= 0
+          );
+        })
+        .map((v) => ({
+          id: v.id,
+          verse_key: `${v.surah_number}:${v.ayah_number}`,
+          arabic: v.arabic_text,
+          translation: ""
+        }));
+
+      if (!arabicVerses.length) {
+        throw new Error("آیات این جزء در پایگاه داده پیدا نشدند.");
       }
 
-      const data = await response.json();
-
-      const arabicVerses: ReaderVerse[] = (
-        data.verses || []
-      ).map((verse: ApiVerse) => ({
-        id: verse.id,
-        verse_key: verse.verse_key,
-        arabic: verse.text_uthmani,
-        translation: "",
-      }));
-
-      if (arabicVerses.length === 0) {
-        setVerses([]);
-        return;
-      }
-
-      // دریافت ترجمه هر سوره فقط یک بار
       const surahNumbers = Array.from(
         new Set(
-          arabicVerses.map((verse) =>
-            Number(verse.verse_key.split(":")[0])
+          arabicVerses.map((v) =>
+            Number(v.verse_key.split(":")[0])
           )
         )
       );
 
-      const translationResults = await Promise.all(
-        surahNumbers.map(async (surahNumber) => {
-          const translationResponse = await fetch(
-            `${TRANSLATION_API}/${surahNumber}`
-          );
-
-          if (!translationResponse.ok) {
-            throw new Error(
-              `Translation request failed: ${surahNumber}`
+      try {
+        const results = await Promise.all(
+          surahNumbers.map(async (surah) => {
+            const response = await fetch(
+              `${TRANSLATION_API}/${surah}`
             );
-          }
 
-          const items: TranslationItem[] =
-            await translationResponse.json();
+            if (!response.ok) throw new Error("Translation error");
 
-          return items;
-        })
-      );
-
-      const translationMap = new Map<string, string>();
-
-      translationResults.flat().forEach((item) => {
-        translationMap.set(
-          `${item.sura}:${item.aya}`,
-          item.translation
+            return await response.json() as TranslationItem[];
+          })
         );
-      });
 
-      const completeVerses = arabicVerses.map((verse) => ({
-        ...verse,
-        translation:
-          translationMap.get(verse.verse_key) || "",
-      }));
+        const translationMap = new Map<string, string>();
 
-      setVerses(completeVerses);
+        results.flat().forEach((item) => {
+          translationMap.set(
+            `${item.sura}:${item.aya}`,
+            item.translation
+          );
+        });
 
-      if (
-        completeVerses.some((verse) => !verse.translation)
-      ) {
+        arabicVerses.forEach((v) => {
+          v.translation = translationMap.get(v.verse_key) || "";
+        });
+
+        if (arabicVerses.some((v) => !v.translation)) {
+          setTranslationWarning(
+            "بعضی ترجمه‌ها دریافت نشدند."
+          );
+        }
+      } catch {
         setTranslationWarning(
-          "بعضی ترجمه‌ها دریافت نشدند. لطفاً اتصال اینترنت را بررسی کنید."
+          "ترجمه فارسی دریافت نشد؛ متن عربی موجود است."
         );
       }
-    } catch {
+
+      setVerses(arabicVerses);
+
+    } catch (err) {
+      console.error(err);
       setError(
-        "دریافت اطلاعات قرآن یا ترجمه انجام نشد. لطفاً دوباره تلاش کنید."
+        err instanceof Error
+          ? err.message
+          : "دریافت قرآن انجام نشد."
       );
     } finally {
       setLoading(false);
@@ -131,21 +158,13 @@ export default function HomePage() {
   }
 
   return (
-    <main
-      dir="rtl"
-      className="min-h-screen px-4 py-6 md:px-8"
-    >
+    <main dir="rtl" className="min-h-screen px-4 py-6 md:px-8">
       <header className="mx-auto mb-8 flex max-w-5xl items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold md:text-3xl">
-            HamianQuran.com
+            همین قرآن
           </h1>
-
-          <p className="mt-1 text-muted">
-            <LanguageText k="quran" />
-          </p>
         </div>
-
         <LanguageSelector />
       </header>
 
@@ -155,24 +174,20 @@ export default function HomePage() {
         </h2>
 
         <div className="grid grid-cols-3 gap-2 sm:grid-cols-5 md:grid-cols-6">
-          {Array.from(
-            { length: 30 },
-            (_, index) => index + 1
-          ).map((number) => (
-            <button
-              key={number}
-              type="button"
-              onClick={() => loadJuz(number)}
-              className={`rounded-xl border px-3 py-3 text-sm font-medium transition hover:bg-black/5 ${
-                juz === number ? "font-bold" : ""
-              }`}
-              style={{
-                borderColor: "var(--border)",
-              }}
-            >
-              <LanguageText k="juz" /> {number}
-            </button>
-          ))}
+          {Array.from({ length: 30 }, (_, index) => index + 1)
+            .map((number) => (
+              <button
+                key={number}
+                type="button"
+                onClick={() => loadJuz(number)}
+                className={`rounded-xl border px-3 py-3 text-sm font-medium transition hover:bg-black/5 ${
+                  juz === number ? "font-bold" : ""
+                }`}
+                style={{ borderColor: "var(--border)" }}
+              >
+                <LanguageText k="juz" /> {number}
+              </button>
+            ))}
         </div>
       </section>
 
@@ -184,15 +199,12 @@ export default function HomePage() {
 
           {loading && (
             <div className="card p-6 text-center">
-              در حال دریافت متن قرآن و ترجمه فارسی...
+              در حال دریافت قرآن از پایگاه داده...
             </div>
           )}
 
           {error && (
-            <div
-              role="alert"
-              className="card p-6 text-center text-red-600"
-            >
+            <div role="alert" className="card p-6 text-center text-red-600">
               {error}
               <button
                 type="button"
@@ -217,9 +229,8 @@ export default function HomePage() {
       )}
 
       <footer className="mx-auto mt-8 max-w-5xl text-center text-xs text-muted">
-        منبع ترجمه فارسی: QuranEnc.com
+        متن عربی قرآن: پایگاه داده اختصاصی همین قرآن
       </footer>
     </main>
   );
 }
-
