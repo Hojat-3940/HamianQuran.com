@@ -20,10 +20,17 @@ type TranslationItem = {
   translation: string;
 };
 
+type QuranRow = {
+  id: number;
+  surah_number: number;
+  ayah_number: number;
+  arabic_text: string;
+};
+
 const TRANSLATION_API =
   "https://quranenc.com/api/v1/translation/sura/persian_ih";
 
-const JUZ_STARTS = [
+const JUZ_STARTS: [number, number][] = [
   [1, 1], [2, 142], [2, 253], [3, 93], [4, 24],
   [4, 148], [5, 82], [6, 111], [7, 88], [8, 41],
   [9, 93], [11, 6], [12, 53], [15, 1], [17, 1],
@@ -32,7 +39,7 @@ const JUZ_STARTS = [
   [46, 1], [51, 31], [58, 1], [67, 1], [78, 1]
 ];
 
-const JUZ_ENDS = [
+const JUZ_ENDS: [number, number][] = [
   [2, 141], [2, 252], [3, 92], [4, 23], [4, 147],
   [5, 81], [6, 110], [7, 87], [8, 40], [9, 92],
   [11, 5], [12, 52], [14, 52], [16, 128], [18, 74],
@@ -48,13 +55,42 @@ function compareVerse(
   return a[0] - b[0] || a[1] - b[1];
 }
 
+async function getAllQuranVerses(): Promise<QuranRow[]> {
+  const batchSize = 1000;
+  let offset = 0;
+  let allRows: QuranRow[] = [];
+
+  while (true) {
+    const { data, error } = await supabase
+      .from("quran_verses")
+      .select("id, surah_number, ayah_number, arabic_text")
+      .order("surah_number", { ascending: true })
+      .order("ayah_number", { ascending: true })
+      .range(offset, offset + batchSize - 1);
+
+    if (error) {
+      throw new Error(error.message);
+    }
+
+    const rows = (data || []) as QuranRow[];
+    allRows = allRows.concat(rows);
+
+    if (rows.length < batchSize) {
+      break;
+    }
+
+    offset += batchSize;
+  }
+
+  return allRows;
+}
+
 export default function HomePage() {
   const [juz, setJuz] = useState<number | null>(null);
   const [verses, setVerses] = useState<ReaderVerse[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  const [translationWarning, setTranslationWarning] =
-    useState("");
+  const [translationWarning, setTranslationWarning] = useState("");
 
   async function loadJuz(juzNumber: number) {
     setJuz(juzNumber);
@@ -67,15 +103,9 @@ export default function HomePage() {
       const start = JUZ_STARTS[juzNumber - 1];
       const end = JUZ_ENDS[juzNumber - 1];
 
-      const { data, error: dbError } = await supabase
-        .from("quran_verses")
-        .select("id, surah_number, ayah_number, arabic_text")
-        .order("surah_number", { ascending: true })
-        .order("ayah_number", { ascending: true });
+      const data = await getAllQuranVerses();
 
-      if (dbError) throw dbError;
-
-      const arabicVerses: ReaderVerse[] = (data || [])
+      const arabicVerses: ReaderVerse[] = data
         .filter((v) => {
           const position: [number, number] = [
             v.surah_number,
@@ -113,7 +143,9 @@ export default function HomePage() {
               `${TRANSLATION_API}/${surah}`
             );
 
-            if (!response.ok) throw new Error("Translation error");
+            if (!response.ok) {
+              throw new Error("Translation error");
+            }
 
             return await response.json() as TranslationItem[];
           })
@@ -129,7 +161,8 @@ export default function HomePage() {
         });
 
         arabicVerses.forEach((v) => {
-          v.translation = translationMap.get(v.verse_key) || "";
+          v.translation =
+            translationMap.get(v.verse_key) || "";
         });
 
         if (arabicVerses.some((v) => !v.translation)) {
@@ -139,18 +172,17 @@ export default function HomePage() {
         }
       } catch {
         setTranslationWarning(
-          "ترجمه فارسی دریافت نشد؛ متن عربی موجود است."
+          "دریافت ترجمه فارسی موقتاً با مشکل روبه‌رو شد؛ متن عربی در دسترس است."
         );
       }
 
       setVerses(arabicVerses);
-
     } catch (err) {
-      console.error(err);
+      console.error("Quran loading error:", err);
       setError(
         err instanceof Error
           ? err.message
-          : "دریافت قرآن انجام نشد."
+          : "خطا در دریافت آیات قرآن."
       );
     } finally {
       setLoading(false);
@@ -158,13 +190,15 @@ export default function HomePage() {
   }
 
   return (
-    <main dir="rtl" className="min-h-screen px-4 py-6 md:px-8">
-      <header className="mx-auto mb-8 flex max-w-5xl items-center justify-between gap-4">
+    <main className="mx-auto min-h-screen max-w-6xl space-y-8 px-4 py-6">
+
+      <header className="flex items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold md:text-3xl">
             همین قرآن
           </h1>
         </div>
+
         <LanguageSelector />
       </header>
 
@@ -174,20 +208,22 @@ export default function HomePage() {
         </h2>
 
         <div className="grid grid-cols-3 gap-2 sm:grid-cols-5 md:grid-cols-6">
-          {Array.from({ length: 30 }, (_, index) => index + 1)
-            .map((number) => (
-              <button
-                key={number}
-                type="button"
-                onClick={() => loadJuz(number)}
-                className={`rounded-xl border px-3 py-3 text-sm font-medium transition hover:bg-black/5 ${
-                  juz === number ? "font-bold" : ""
-                }`}
-                style={{ borderColor: "var(--border)" }}
-              >
-                <LanguageText k="juz" /> {number}
-              </button>
-            ))}
+          {Array.from(
+            { length: 30 },
+            (_, index) => index + 1
+          ).map((number) => (
+            <button
+              key={number}
+              type="button"
+              onClick={() => loadJuz(number)}
+              className={`rounded-xl border px-3 py-3 text-sm font-medium transition hover:bg-black/5 ${
+                juz === number ? "font-bold" : ""
+              }`}
+              style={{ borderColor: "var(--border)" }}
+            >
+              <LanguageText k="juz" /> {number}
+            </button>
+          ))}
         </div>
       </section>
 
@@ -204,8 +240,12 @@ export default function HomePage() {
           )}
 
           {error && (
-            <div role="alert" className="card p-6 text-center text-red-600">
+            <div
+              role="alert"
+              className="card p-6 text-center text-red-600"
+            >
               {error}
+
               <button
                 type="button"
                 onClick={() => loadJuz(juz)}
@@ -231,6 +271,7 @@ export default function HomePage() {
       <footer className="mx-auto mt-8 max-w-5xl text-center text-xs text-muted">
         متن عربی قرآن: پایگاه داده اختصاصی همین قرآن
       </footer>
+
     </main>
   );
 }
